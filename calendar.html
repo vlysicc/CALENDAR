@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendar 2023</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+    .calendar-year {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      max-width: 1200px;
+    }
+    .month {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 10px;
+    }
+    .month h3 {
+      text-align: center;
+      margin: 10px 0;
+      color: #333;
+    }
+    .weekdays, .days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .weekdays div {
+      text-align: center;
+      font-weight: bold;
+      color: #555;
+    }
+    .days div {
+      text-align: center;
+      padding: 8px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      position: relative;
+    }
+    .days div:hover {
+      background: #e0e7ff;
+    }
+    .out-of-month {
+      color: #aaa;
+      cursor: default;
+    }
+    .holiday-dot {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      width: 6px;
+      height: 6px;
+      background: #e53e3e;
+      border-radius: 50%;
+    }
+
+    /* Modal / Popup */
+    .modal-overlay {
+      position: fixed;
+      top:0; left:0;
+      width:100%; height:100%;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 90%;
+      width: 300px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      position: relative;
+    }
+    .modal-header {
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    .modal-close {
+      position: absolute;
+      top: 10px; right: 10px;
+      cursor: pointer;
+      font-size: 1.2em;
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+
+<div class="calendar-year" id="calendarYear"></div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <span class="modal-close" id="modalClose">&times;</span>
+    <div class="modal-header" id="modalDateLabel">Date</div>
+    <div id="modalHolidayInfo">Holiday info here</div>
+  </div>
+</div>
+
+<script>
+// Holidays PH 2023 based on Proclamation No. 42 and amendments. :contentReference[oaicite:0]{index=0}
+const holidays2023 = {
+  "2023-01-01": { name: "New Year’s Day", type: "Regular Holiday" },
+  "2023-01-02": { name: "Additional Special Non-Working Day", type: "Special Non-Working Holiday" },
+  "2023-02-24": { name: "EDSA People Power Revolution Anniversary", type: "Special Non-Working Holiday" },
+  "2023-04-06": { name: "Maundy Thursday", type: "Regular Holiday" },
+  "2023-04-07": { name: "Good Friday", type: "Regular Holiday" },
+  "2023-04-21": { name: "Eid'l Fitr", type: "Regular Holiday" },
+  "2023-05-01": { name: "Labor Day", type: "Regular Holiday" },
+  "2023-06-12": { name: "Independence Day", type: "Regular Holiday" },
+  "2023-06-28": { name: "Eid al-Adha", type: "Regular Holiday" },
+  "2023-08-21": { name: "Ninoy Aquino Day", type: "Special Non-Working Holiday" },
+  "2023-08-28": { name: "National Heroes Day", type: "Regular Holiday" },
+  "2023-11-01": { name: "All Saints’ Day", type: "Special Non-Working Holiday" },
+  "2023-11-02": { name: "Additional Special Non-Working Holiday (All Souls’ Day)", type: "Special Non-Working Holiday" },
+  "2023-11-27": { name: "Bonifacio Day (Observed)", type: "Regular Holiday" },
+  "2023-12-08": { name: "Feast of the Immaculate Conception", type: "Special Non-Working Holiday" },
+  "2023-12-25": { name: "Christmas Day", type: "Regular Holiday" },
+  "2023-12-24": { name: "Christmas Eve", type: "Special Non-Working Holiday" },
+  "2023-12-30": { name: "Rizal Day", type: "Regular Holiday" },
+  "2023-12-31": { name: "Last Day of the Year", type: "Special Non-Working Holiday" }
+};
+
+// Utility function
+function pad(n) { return n < 10 ? "0" + n : n; }
+
+// Build year calendar
+const calendarYearEl = document.getElementById('calendarYear');
+
+for (let month = 0; month < 12; month++) {
+  const monthDiv = document.createElement('div');
+  monthDiv.classList.add('month');
+
+  const monthName = new Date(2023, month).toLocaleString('en', { month: 'long' });
+  const header = document.createElement('h3');
+  header.textContent = `${monthName} 2023`;
+  monthDiv.appendChild(header);
+
+  // Weekdays header
+  const weekdaysDiv = document.createElement('div');
+  weekdaysDiv.classList.add('weekdays');
+  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].forEach(wd => {
+    const d = document.createElement('div');
+    d.textContent = wd;
+    weekdaysDiv.appendChild(d);
+  });
+  monthDiv.appendChild(weekdaysDiv);
+
+  // Days grid
+  const daysDiv = document.createElement('div');
+  daysDiv.classList.add('days');
+
+  const firstDay = new Date(2023, month, 1).getDay();
+  const daysInMonth = new Date(2023, month + 1, 0).getDate();
+
+  // fill blanks for days before first
+  for (let i = 0; i < firstDay; i++) {
+    const blank = document.createElement('div');
+    blank.classList.add('out-of-month');
+    blank.textContent = "";
+    daysDiv.appendChild(blank);
+  }
+
+  // fill days
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `2023-${pad(month + 1)}-${pad(day)}`;
+    const dayDiv = document.createElement('div');
+    dayDiv.textContent = day;
+    dayDiv.dataset.date = dateStr;
+
+    if (holidays2023[dateStr]) {
+      const dot = document.createElement('div');
+      dot.classList.add('holiday-dot');
+      dayDiv.appendChild(dot);
+    }
+
+    dayDiv.addEventListener('click', () => {
+      showPopup(dateStr);
+    });
+
+    daysDiv.appendChild(dayDiv);
+  }
+
+  monthDiv.appendChild(daysDiv);
+  calendarYearEl.appendChild(monthDiv);
+}
+
+// Popup logic
+const modalOverlay = document.getElementById('modalOverlay');
+const modalClose = document.getElementById('modalClose');
+const modalDateLabel = document.getElementById('modalDateLabel');
+const modalHolidayInfo = document.getElementById('modalHolidayInfo');
+
+function showPopup(dateStr) {
+  modalDateLabel.textContent = dateStr;
+  if (holidays2023[dateStr]) {
+    modalHolidayInfo.innerHTML = `<strong>${holidays2023[dateStr].name}</strong><br/>Type: ${holidays2023[dateStr].type}`;
+  } else {
+    modalHolidayInfo.textContent = "No holiday listed for this date.";
+  }
+  modalOverlay.style.display = 'flex';
+}
+
+modalClose.addEventListener('click', () => {
+  modalOverlay.style.display = 'none';
+});
+modalOverlay.addEventListener('click', (e) => {
+  if (e.target === modalOverlay) {
+    modalOverlay.style.display = 'none';
+  }
+});
+</script>
+
+</body>
+</html>
